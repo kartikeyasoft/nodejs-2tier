@@ -58,7 +58,7 @@ Designed for easy deployment on two separate VMs (or local machines) with Nginx 
 
 
 
-## 🚀 Build & serve with Nginx (production)
+## 🚀Frontend VM Build & serve with Nginx (production)
 
 ### 1. Install Nginx and Node.js 
 ```bash
