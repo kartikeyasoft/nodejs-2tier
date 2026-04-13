@@ -98,7 +98,7 @@ server {
     }
 
     location /api {
-        proxy_pass http://<BACKEND_IP>:5000;   # Replace with actual backend IP
+        proxy_pass http://localhost:5000;   # Replace with actual backend IP <BACKEND_IP>
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
