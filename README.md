@@ -126,3 +126,93 @@ sudo ufw allow 80/tcp
 Open a browser and go to `http://<frontend-vm-ip>`.  
 You should see the **Server Magic Input Hub** UI.
 
+
+
+
+
+## 🚀 Backend VM Configuration 
+
+### 1. Install Node.js 18.x and npm
+```bash
+sudo apt update
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt install -y nodejs
+```
+
+Verify:
+```bash
+node --version   # should be v18.x
+npm --version
+```
+
+### 2. Navigate to the backend directory
+```bash
+cd /home/youruser/nodejs-2tier/backend
+```
+
+### 3. Install dependencies
+```bash
+npm install
+```
+This reads `package.json` and installs `express` and `cors`.
+
+### 4. Run the backend manually (for testing)
+```bash
+node server.js
+```
+You should see:
+```
+  ╔══════════════════════════════════════════════════════╗
+  ║   🧙 SERVER MAGIC INPUT HUB BACKEND 🧙               ║
+  ║   API running on port 5000                          ║
+  ...
+```
+Keep it running in this terminal, or press `Ctrl+C` to stop.
+
+### 5. (Optional) Run backend as a background service with systemd (recommended for production)
+
+Create a systemd service file:
+```bash
+CURRENT_USER=$(whoami); USER_HOME=$(eval echo ~$CURRENT_USER); sudo tee /etc/systemd/system/magic-hub-backend.service > /dev/null << EOF
+[Unit]
+Description=Server Magic Hub Backend
+After=network.target
+
+[Service]
+Type=simple
+User=$CURRENT_USER
+WorkingDirectory=$USER_HOME/server-magic-hub/backend
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload && sudo systemctl start magic-hub-backend && sudo systemctl enable magic-hub-backend
+```
+
+Then start and enable it:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl start magic-hub-backend
+sudo systemctl enable magic-hub-backend
+```
+
+Check status:
+```bash
+sudo systemctl status magic-hub-backend
+```
+
+### 6. Open firewall port 5000 (if `ufw` is enabled)
+```bash
+sudo ufw allow 5000/tcp
+sudo ufw enable   # if not already enabled
+```
+
+### 7. Verify the backend is reachable
+```bash
+curl http://localhost:5000/api/todos
+```
+Should return the JSON list of default spells.
