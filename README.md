@@ -67,8 +67,13 @@ sudo apt install -y nginx curl
 curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
 sudo apt install -y nodejs
 ```
+### 2. Replace the backend placeholder IP
+```bash
+sed -i "s|BACKEND_IP_PLACEHOLDER|192.168.29.38|g" src/App.js
+```
+*(Change `192.168.29.38` to your actual backend IP)*
 
-### 2. Build the React app
+### 3. Build the React app
 ```bash
 cd /path/to/nodejs-2tier/frontend
 npm install
@@ -76,13 +81,13 @@ npm run build
 ```
 This creates a `build/` directory with static files.
 
-### 3. Copy the build to Nginx web root
+### 4. Copy the build to Nginx web root
 ```bash
 sudo rm -rf /var/www/html/*
 sudo cp -r build/* /var/www/html/
 ```
 
-### 4. Configure Nginx as reverse proxy (to forward `/api` to your backend)
+### 5. Configure Nginx as reverse proxy (to forward `/api` to your backend)
 Create a new Nginx configuration file:
 ```bash
 sudo tee /etc/nginx/sites-available/magic-hub-frontend > /dev/null << 'EOF'
@@ -110,19 +115,19 @@ EOF
 ```
 **Important**: Replace `<BACKEND_IP>` with the actual IP address of your backend VM (e.g., `192.168.29.38`).
 
-### 5. Enable the site and restart Nginx
+### 6. Enable the site and restart Nginx
 ```bash
 sudo ln -sf /etc/nginx/sites-available/magic-hub-frontend /etc/nginx/sites-enabled/
 sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t && sudo systemctl restart nginx
 ```
 
-### 6. Allow HTTP in firewall (if enabled)
+### 7. Allow HTTP in firewall (if enabled)
 ```bash
 sudo ufw allow 80/tcp
 ```
 
-### 7. Access the frontend
+### 8. Access the frontend
 Open a browser and go to `http://<frontend-vm-ip>`.  
 You should see the **Server Magic Input Hub** UI.
 
@@ -222,3 +227,21 @@ sudo ufw enable   # if not already enabled
 curl http://localhost:5000/api/todos
 ```
 Should return the JSON list of default spells.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
