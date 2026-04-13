@@ -173,7 +173,14 @@ Keep it running in this terminal, or press `Ctrl+C` to stop.
 
 Create a systemd service file:
 ```bash
-CURRENT_USER=$(whoami); USER_HOME=$(eval echo ~$CURRENT_USER); sudo tee /etc/systemd/system/magic-hub-backend.service > /dev/null << EOF
+# Get current username (should be 'ks')
+CURRENT_USER=$(whoami)
+
+# Set the correct working directory
+WORK_DIR="/home/$CURRENT_USER/nodejs-2tier/backend"
+
+# Create/overwrite the service file
+sudo tee /etc/systemd/system/magic-hub-backend.service > /dev/null << EOF
 [Unit]
 Description=Server Magic Hub Backend
 After=network.target
@@ -181,7 +188,7 @@ After=network.target
 [Service]
 Type=simple
 User=$CURRENT_USER
-WorkingDirectory=$USER_HOME/server-magic-hub/backend
+WorkingDirectory=$WORK_DIR
 ExecStart=/usr/bin/node server.js
 Restart=always
 RestartSec=10
@@ -190,7 +197,6 @@ Environment=NODE_ENV=production
 [Install]
 WantedBy=multi-user.target
 EOF
-sudo systemctl daemon-reload && sudo systemctl start magic-hub-backend && sudo systemctl enable magic-hub-backend
 ```
 
 Then start and enable it:
