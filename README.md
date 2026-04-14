@@ -1,247 +1,289 @@
-# 🧙 Nodejs – 2‑Tier Full‑Stack Application
-
-A modern, stylish **task manager** with a **magic spell‑casting theme** – built as a two‑tier web application.  
-The frontend (React) communicates with a backend (Node.js + Express) that stores tasks in memory.  
-Designed for easy deployment on two separate VMs (or local machines) with Nginx reverse proxy and systemd.
+Here are the **Dockerfiles** for both **backend** and **frontend** of the **Server Magic Input Hub** application.
 
 ---
 
-## 🏗️ Architecture
-<img width="501" height="185" alt="image" src="https://github.com/user-attachments/assets/404363f2-9313-4b49-87bc-a9db8a73ed9c" />
+## 🐳 Backend Dockerfile
 
+Place this file at `server-magic-hub/backend/Dockerfile`
 
+```dockerfile
+FROM node:18-alpine
 
-- **Frontend (VM1)**: React application served by Nginx. All API calls are proxied to the backend VM.
-- **Backend (VM2)**: Node.js + Express REST API. Data is stored in memory (volatile, for demo/development).
-- **Communication**: HTTP over private network. CORS enabled.
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install --omit=dev
+
+COPY . .
+
+EXPOSE 5000
+
+CMD ["npm", "start"]
+```
+
+> **Note**: --omit=dev is the modern replacement for --only=production. It installs only production dependencies and does not require a lockfile.
+---
+
+## 🐳 Frontend Dockerfile (multi‑stage – production ready)
+
+Place this file at `server-magic-hub/frontend/Dockerfile`
+
+```dockerfile
+# Stage 1: Build the React application
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files and install dependencies
+COPY package*.json ./
+RUN npm install
+
+# Copy source code and build
+COPY . .
+RUN npm run build
+
+# Stage 2: Serve with Nginx
+FROM nginx:alpine
+
+# Copy built assets from builder stage
+COPY --from=builder /app/build /usr/share/nginx/html
+
+# Create Nginx configuration with reverse proxy to backend
+# The backend service name is expected to be "backend" (when using docker-compose)
+RUN echo 'server { \
+    listen 80; \
+    server_name localhost; \
+    location / { \
+        root /usr/share/nginx/html; \
+        index index.html; \
+        try_files $uri $uri/ /index.html; \
+    } \
+    location /api { \
+        proxy_pass http://backend:5000; \
+        proxy_http_version 1.1; \
+        proxy_set_header Upgrade $http_upgrade; \
+        proxy_set_header Connection "upgrade"; \
+        proxy_set_header Host $host; \
+        proxy_cache_bypass $http_upgrade; \
+    } \
+}' > /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+> **Note**: The proxy passes to `http://backend:5000`. This works when both containers are linked via Docker Compose or a custom network with service name `backend`. If you run containers separately, you can override the configuration or use an environment variable.
 
 ---
 
-## 🚀 Features
+## 🔧 Manual Docker commands (without Compose)
 
-- ✨ **Modern glassmorphism UI** – soft gradients, rounded cards, smooth animations.
-- ⚡ **Real‑time task status** – mark tasks as `PENDING` / `EXECUTED` (completed).
-- 🧙 **Magic spell theme** – tasks are called “spells”, adding a playful console vibe.
-- 🔁 **RESTful API** – full CRUD operations (Create, Read, Update, Delete).
-- 🐳 **Docker‑ready** – both frontend and backend can be containerised (optional).
-- 🔒 **Systemd integration** – auto‑start and restart on VM boot.
+### Build images
+```bash
+# Backend
+cd server-magic-hub/backend
+docker build -t magic-hub-backend .
+
+# Frontend
+cd ../frontend
+docker build -t magic-hub-frontend .
+```
+
+### Run containers (with a shared network)
+```bash
+# Create network
+docker network create magic-hub-net
+
+# Run backend
+docker run -d --name backend --network magic-hub-net -p 5000:5000 magic-hub-backend
+
+# Run frontend
+docker run -d --name frontend --network magic-hub-net -p 80:80 magic-hub-frontend
+```
+
+The frontend will proxy `/api` requests to `http://backend:5000` because of the network alias `backend`.
 
 ---
 
-## 🛠️ Technologies Used
+## 📁 Final project structure
 
-| Component       | Technology                                 |
-|----------------|--------------------------------------------|
-| Frontend       | React, Axios, Styled‑Components, FontAwesome |
-| Backend        | Node.js, Express, CORS                     |
-| Web Server     | Nginx (reverse proxy for frontend)         |
-| Process Manager| systemd                                    |
-| Firewall       | UFW                                        |
-| OS             | Ubuntu / Debian (or any Linux)             |
+```
+server-magic-hub/
+├── backend/
+│   ├── Dockerfile
+│   ├── package.json
+│   └── server.js
+├── frontend/
+│   ├── Dockerfile
+│   ├── package.json
+│   ├── public/
+│   │   └── index.html
+│   └── src/
+│       ├── index.js
+│       └── App.js
+└── docker-compose.yml
+```
 
 ---
 
-## 📦 Deployment Guide (Two Separate VMs)
+## ✅ Final fix – use relative API URLs (no hardcoded backend)
 
-### Prerequisites
-- Two Linux VMs (or machines) with **Ubuntu 20.04+**.
-- **Frontend VM IP** – will be the public access point.
-- **Backend VM IP** (e.g., `192.168.29.38`) – known in advance.
-- Both VMs have internet access to install packages.
+### 1. Edit `App.js` in your frontend source
+
+```bash
+cd /workspaces/codespaces-blank/nodejs-2tier/frontend/src
+nano App.js
+```
+
+Find the line:
+```javascript
+const API_URL = `http://backend:5000`;
+```
+
+Change it to:
+```javascript
+const API_URL = '';   // empty = relative URLs
+```
+
+Save the file.
+
+### 2. Rebuild the frontend Docker image
+
+```bash
+cd /workspaces/codespaces-blank/nodejs-2tier/frontend
+docker build -t magic-hub-frontend .
+```
+
+### 3. Remove the old frontend container and run a new one
+
+```bash
+docker rm -f frontend
+docker run -d --name frontend --network magic-hub-net -p 80:80 magic-hub-frontend
+```
+
+### 4. Test the application
+
+Open your browser at the Codespace’s public URL (or `http://localhost:80`).  
+You should now see the 5 default spells loaded correctly.
+
+Great! Now let's set up **docker-compose** to manage both containers together. This will simplify everything – no need to manually create networks or run separate commands.
 
 ---
 
-## Quick Start
+## 🐳 `docker-compose.yml` (place in `/workspaces/codespaces-blank/nodejs-2tier/`)
 
+```yaml
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: magic-hub-backend
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+    networks:
+      - magic-hub-net
+
+  frontend:
+    build: ./frontend
+    container_name: magic-hub-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - magic-hub-net
+
+networks:
+  magic-hub-net:
+    driver: bridge
+```
 
 ---
 
+## 🚀 Steps to remove old containers and start fresh with docker-compose
 
-
-## 🚀Frontend VM Build & serve with Nginx (production)
-
-### 1. Install Nginx and Node.js 
+### 1. Stop and remove all existing containers and network
 ```bash
-sudo apt update
-sudo apt install -y nginx curl
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-sudo apt install -y nodejs
+cd /workspaces/codespaces-blank/nodejs-2tier
+docker rm -f backend frontend 2>/dev/null || true
+docker network rm magic-hub-net 2>/dev/null || true
 ```
-### 2. Replace the backend placeholder IP
+
+### 2. Ensure your `frontend/src/App.js` uses **relative API URL** (no hardcoded backend)
+```javascript
+const API_URL = '';   // empty = relative URLs
+```
+If you haven't changed it yet, edit the file now.
+
+### 3. Rebuild images and start everything with compose
 ```bash
-sed -i "s|BACKEND_IP_PLACEHOLDER|192.168.29.38|g" src/App.js
+docker-compose up -d --build
 ```
-*(Change `192.168.29.38` to your actual backend IP)*
 
-### 3. Build the React app
+### 4. Check logs
 ```bash
-cd /path/to/nodejs-2tier/frontend
-npm install
-npm run build
+docker-compose logs -f
 ```
-This creates a `build/` directory with static files.
 
-### 4. Copy the build to Nginx web root
+### 5. Access the application
+Open your browser at `http://<your-server-ip>` (or the Codespace public URL).  
+You should see the **Server Magic Input Hub** with the 5 default spells.
+
+---
+
+## 🔧 Additional tips
+
+- **Stopping everything**: `docker-compose down`
+- **Rebuilding after code changes**: `docker-compose up -d --build`
+- **View running containers**: `docker-compose ps`
+
+
+#### Option 1: Reset Your Current Project (Stops Services & Deletes Data)
+
+This will stop your application and delete the database volume (`postgres_data`), giving you a completely fresh start.
+
 ```bash
-sudo rm -rf /var/www/html/*
-sudo cp -r build/* /var/www/html/
+cd /path/to/your/project
+docker compose down -v
 ```
 
-### 5. Configure Nginx as reverse proxy (to forward `/api` to your backend)
-Create a new Nginx configuration file:
+After this, you can run `docker compose up -d` to start fresh.
+
+#### Option 2: Full System Cleanup (Cleans Everything Docker)
+
+This stops *all* running containers across your system and removes all unused data.
+
 ```bash
-sudo tee /etc/nginx/sites-available/magic-hub-frontend > /dev/null << 'EOF'
-server {
-    listen 80;
-    server_name _;
+# Stop all running containers
+docker stop $(docker ps -q)
 
-    root /var/www/html;
-    index index.html;
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    location /api {
-        proxy_pass http://localhost:5000;   # Replace with actual backend IP <BACKEND_IP>
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-EOF
+# Remove all containers, networks, volumes, and images on your entire system
+docker system prune -a --volumes
 ```
-**Important**: Replace `<BACKEND_IP>` with the actual IP address of your backend VM (e.g., `192.168.29.38`).
+**Warning**: This will remove *all* unused Docker resources, which may include data from other projects.
 
-### 6. Enable the site and restart Nginx
+#### Option 3: Remove Everything for Your Project (Most Thorough)
+
+This command targets your current project and removes containers, networks, volumes, and images all in one step.
+
 ```bash
-sudo ln -sf /etc/nginx/sites-available/magic-hub-frontend /etc/nginx/sites-enabled/
-sudo rm -f /etc/nginx/sites-enabled/default
-sudo nginx -t && sudo systemctl restart nginx
+docker compose down -v --rmi all --remove-orphans
 ```
 
-### 7. Allow HTTP in firewall (if enabled)
-```bash
-sudo ufw allow 80/tcp
-```
+This ensures a completely clean slate for your specific application.
 
-### 8. Access the frontend
-Open a browser and go to `http://<frontend-vm-ip>`.  
-You should see the **Server Magic Input Hub** UI.
+### 💎 Summary of Key Flags
 
+Here's a quick cheat sheet for the flags you'll use most often:
 
+| Command Flag | Purpose |
+| :--- | :--- |
+| `docker compose down -v` | 🗑️ Deletes project-specific **volumes** (e.g., databases). |
+| `docker compose down --rmi all` | 🖼️ Deletes the **images** used by the project. |
+| `docker system prune -a --volumes` | 🧹 Performs a **full system cleanup** (containers, networks, images, volumes). |
 
-
-
-## 🚀 Backend VM Configuration 
-
-### 1. Install Node.js 18.x and npm
-```bash
-sudo apt update
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-sudo apt install -y nodejs
-```
-
-Verify:
-```bash
-node --version   # should be v18.x
-npm --version
-```
-
-### 2. Navigate to the backend directory
-```bash
-cd /home/youruser/nodejs-2tier/backend
-```
-
-### 3. Install dependencies
-```bash
-npm install
-```
-This reads `package.json` and installs `express` and `cors`.
-
-### 4. Run the backend manually (for testing)
-```bash
-node server.js
-```
-You should see:
-```
-  ╔══════════════════════════════════════════════════════╗
-  ║   🧙 SERVER MAGIC INPUT HUB BACKEND 🧙               ║
-  ║   API running on port 5000                          ║
-  ...
-```
-Keep it running in this terminal, or press `Ctrl+C` to stop.
-
-### 5. (Optional) Run backend as a background service with systemd (recommended for production)
-
-Create a systemd service file:
-```bash
-# Get current username (should be 'ks')
-CURRENT_USER=$(whoami)
-
-# Set the correct working directory
-WORK_DIR="/home/$CURRENT_USER/nodejs-2tier/backend"
-
-# Create/overwrite the service file
-sudo tee /etc/systemd/system/magic-hub-backend.service > /dev/null << EOF
-[Unit]
-Description=Server Magic Hub Backend
-After=network.target
-
-[Service]
-Type=simple
-User=$CURRENT_USER
-WorkingDirectory=$WORK_DIR
-ExecStart=/usr/bin/node server.js
-Restart=always
-RestartSec=10
-Environment=NODE_ENV=production
-
-[Install]
-WantedBy=multi-user.target
-EOF
-```
-
-Then start and enable it:
-```bash
-sudo systemctl daemon-reload
-sudo systemctl start magic-hub-backend
-sudo systemctl enable magic-hub-backend
-```
-
-Check status:
-```bash
-sudo systemctl status magic-hub-backend
-```
-
-### 6. Open firewall port 5000 (if `ufw` is enabled)
-```bash
-sudo ufw allow 5000/tcp
-sudo ufw enable   # if not already enabled
-```
-
-### 7. Verify the backend is reachable
-```bash
-curl http://localhost:5000/api/todos
-```
-Should return the JSON list of default spells.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+To get a targeted, project-specific cleanup, the `docker compose down` command with the `-v` (and potentially `--rmi`) flag is your best bet. This approach ensures a clean slate for your specific application without impacting other Docker projects on your system. Give it a try, and let me know if you need anything else.
