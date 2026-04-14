@@ -271,7 +271,7 @@ docker system prune -a --volumes
 This command targets your current project and removes containers, networks, volumes, and images all in one step.
 
 ```bash
-docker compose down -v --rmi all --remove-orphans
+docker-compose down -v --rmi all --remove-orphans
 ```
 
 This ensures a completely clean slate for your specific application.
@@ -282,8 +282,8 @@ Here's a quick cheat sheet for the flags you'll use most often:
 
 | Command Flag | Purpose |
 | :--- | :--- |
-| `docker compose down -v` | 🗑️ Deletes project-specific **volumes** (e.g., databases). |
-| `docker compose down --rmi all` | 🖼️ Deletes the **images** used by the project. |
+| `docker-compose down -v` | 🗑️ Deletes project-specific **volumes** (e.g., databases). |
+| `docker-compose down --rmi all` | 🖼️ Deletes the **images** used by the project. |
 | `docker system prune -a --volumes` | 🧹 Performs a **full system cleanup** (containers, networks, images, volumes). |
 
 To get a targeted, project-specific cleanup, the `docker compose down` command with the `-v` (and potentially `--rmi`) flag is your best bet. This approach ensures a clean slate for your specific application without impacting other Docker projects on your system. Give it a try, and let me know if you need anything else.
