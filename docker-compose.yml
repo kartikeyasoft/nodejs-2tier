@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: magic-hub-backend
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+    networks:
+      - magic-hub-net
+
+  frontend:
+    build: ./frontend
+    container_name: magic-hub-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - magic-hub-net
+
+networks:
+  magic-hub-net:
+    driver: bridge
